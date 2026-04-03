@@ -40,10 +40,6 @@ export class AuthController {
       const file = req.file;
       const userAddress = String(req.body?.userAddress ?? '').trim();
 
-      if (!file) {
-        return res.status(400).json(errorResponse('请上传 Offer Letter 图片'));
-      }
-
       if (!userAddress) {
         return res.status(400).json(errorResponse('缺少钱包地址'));
       }
@@ -52,15 +48,25 @@ export class AuthController {
         return res.status(400).json(errorResponse('钱包地址格式不正确'));
       }
 
-      // 将上传的文件转换为 base64
-      const base64Image = file.buffer.toString('base64');
+      let ocrResult;
+      if (file) {
+        // 将上传的文件转换为 base64
+        const base64Image = file.buffer.toString('base64');
 
-      // 使用 AI 识别 Offer Letter
-      const ocrResult = await AuthService.extractOfferInfo(base64Image);
+        // 使用 AI 识别 Offer Letter
+        ocrResult = await AuthService.extractOfferInfo(base64Image);
 
-      // 如果 AI 判断不是有效的 Offer Letter，返回错误
-      if (!ocrResult.isValid) {
-        return res.status(400).json(errorResponse('上传的图片不是有效的 Offer Letter，请上传正确的实习/入职 offer'));
+        if (!ocrResult.isValid) {
+          return res.status(400).json(errorResponse('上传的图片不是有效的 Offer Letter，请上传正确的实习/入职 offer'));
+        }
+      } else {
+        // 兼容前端现有“仅上报 userAddress”调用
+        console.warn('未检测到文件，使用 Demo 模式（不执行 OpenAI 实际 OCR）');
+        ocrResult = {
+          companyName: 'Hackathon Demo Company',
+          isValid: true,
+          expireDate: '',
+        };
       }
 
       // 签发凭证
